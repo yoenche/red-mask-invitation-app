@@ -1,0 +1,1 @@
+export const REACTION_CAPTURE_TIME_SECONDS = 51.0;
