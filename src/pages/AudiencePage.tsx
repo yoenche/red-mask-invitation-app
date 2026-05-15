@@ -31,13 +31,13 @@ type VideoOverlayCue = {
 
 const VIDEO_OVERLAY_CUES: VideoOverlayCue[] = [
   { start: 0, end: 4, text: '붉은 가면의 초대장' },
-  { start: 24, end: 28, text: '손님 확인 중…' },
-  { start: 28, end: 33, text: '가면 번호 생성 중…' },
-  { start: 33, end: 38, text: '가면이 맞지 않습니다.' },
-  { start: 38, end: 43, text: '다시 확인합니다.' },
-  { start: 43, end: 47, text: '초대 대상이 아닙니다.' },
-  { start: 53, end: 57, text: '손님 등록 완료' },
-  { start: 57, end: 60, text: '이제 고개를 들어주세요.' }
+  { start: 14, end: 18, text: '손님 확인 중...' },
+  { start: 19, end: 21, text: '가면 정보가 일치하지 않습니다.' },
+  { start: 22, end: 24, text: '다시 확인합니다.' },
+  { start: 26, end: 28, text: '인식값이 불안정합니다.' },
+  { start: 28.5, end: 30.5, text: '후방에서 다른 얼굴이 감지되었습니다.' },
+  { start: 35, end: 37, text: '확인 완료' },
+  { start: 39, end: 43, text: '당신은 이미 초대되었습니다.' },
 ];
 
 function getOverlayTextForTime(currentTime: number) {
