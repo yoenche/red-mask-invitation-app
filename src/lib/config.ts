@@ -1,5 +1,5 @@
 /** Test / short prologue clip. For the final 60s show video, change back to `51.0`. */
-export const REACTION_CAPTURE_TIME_SECONDS = 3.0;
+export const REACTION_CAPTURE_TIME_SECONDS = 34.0;
 
 /**
  * Picks a capture timecode that fits the loaded video duration.
