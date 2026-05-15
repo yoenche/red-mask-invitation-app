@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { LOOK_UP_BG_URL, PROLOGUE_VIDEO_URL, WAITING_BG_URL } from '../lib/assets';
-import { REACTION_CAPTURE_TIME_SECONDS } from '../lib/config';
+import { getReactionCaptureTimeSeconds } from '../lib/config';
 import { generateReactionResultCardDataUrl } from '../lib/reactionCard';
 import {
   fetchShowControlRow,
@@ -162,6 +162,7 @@ export function AudiencePage() {
   const pendingStartAtRef = useRef<number | null>(null);
   const activeStartAtRef = useRef<number | null>(null);
   const startTimeoutRef = useRef<number | null>(null);
+  const reactionCaptureAtRef = useRef<number | null>(null);
 
   const trackStatus = (status: AudienceStatus) => {
     if (channelRef.current && audienceIdRef.current) {
@@ -246,6 +247,7 @@ export function AudiencePage() {
     hasPendingStartRef.current = false;
     pendingStartAtRef.current = null;
     activeStartAtRef.current = null;
+    reactionCaptureAtRef.current = null;
     hasCapturedReactionRef.current = false;
     capturedReactionImageUrlRef.current = null;
     setResultCardImageUrl(null);
@@ -309,6 +311,11 @@ export function AudiencePage() {
 
   const handleVideoEnded = async () => {
     setVideoOverlayText(null);
+
+    if (!hasCapturedReactionRef.current) {
+      captureReactionImage();
+    }
+
     playbackStateRef.current = 'result';
     setPlaybackState('result');
     trackStatus('RESULT');
@@ -316,6 +323,11 @@ export function AudiencePage() {
     const capturedImageUrl = capturedReactionImageUrlRef.current;
 
     if (!capturedImageUrl) {
+      if (cameraState !== 'denied') {
+        console.error(
+          '[reaction-capture] no image at video end: capture did not run or camera frame was not ready.'
+        );
+      }
       return;
     }
 
@@ -325,37 +337,64 @@ export function AudiencePage() {
     try {
       const resultCardDataUrl = await generateReactionResultCardDataUrl(capturedImageUrl);
       setResultCardImageUrl(resultCardDataUrl);
-    } catch {
+    } catch (error) {
+      console.error('[reaction-card] failed to generate result card:', error);
       setHasResultCardError(true);
     } finally {
       setIsGeneratingResultCard(false);
     }
   };
 
-  const captureReactionImage = () => {
-    if (hasCapturedReactionRef.current) {
+  const syncReactionCaptureTime = (videoElement: HTMLVideoElement) => {
+    const duration = videoElement.duration;
+
+    if (!Number.isFinite(duration) || duration <= 0) {
       return;
+    }
+
+    reactionCaptureAtRef.current = getReactionCaptureTimeSeconds(duration);
+  };
+
+  const captureReactionImage = (): boolean => {
+    if (hasCapturedReactionRef.current) {
+      return Boolean(capturedReactionImageUrlRef.current);
     }
 
     if (cameraState === 'denied') {
       hasCapturedReactionRef.current = true;
-      return;
+      console.error(
+        '[reaction-capture] skipped: camera permission was denied by the user.'
+      );
+      return false;
     }
 
     const cameraVideoElement = cameraVideoRef.current;
 
     if (!cameraVideoElement) {
-      return;
+      console.error('[reaction-capture] failed: camera video element is not available.');
+      return false;
+    }
+
+    const width = cameraVideoElement.videoWidth;
+    const height = cameraVideoElement.videoHeight;
+
+    if (!width || !height) {
+      console.error(
+        `[reaction-capture] failed: camera frame has no dimensions yet (width=${width}, height=${height}).`
+      );
+      return false;
     }
 
     const dataUrl = captureCameraStill(cameraVideoElement);
 
     if (!dataUrl) {
-      return;
+      console.error('[reaction-capture] failed: canvas drawImage returned no data URL.');
+      return false;
     }
 
     hasCapturedReactionRef.current = true;
     capturedReactionImageUrlRef.current = dataUrl;
+    return true;
   };
 
   useEffect(() => {
@@ -495,6 +534,16 @@ export function AudiencePage() {
     }
   };
 
+  const handlePrologueVideoMetadata = () => {
+    const videoElement = videoRef.current;
+
+    if (!videoElement) {
+      return;
+    }
+
+    syncReactionCaptureTime(videoElement);
+  };
+
   const handleVideoTimeUpdate = () => {
     const videoElement = videoRef.current;
 
@@ -502,9 +551,16 @@ export function AudiencePage() {
       return;
     }
 
+    if (reactionCaptureAtRef.current === null) {
+      syncReactionCaptureTime(videoElement);
+    }
+
     setVideoOverlayText(getOverlayTextForTime(videoElement.currentTime) ?? null);
 
-    if (videoElement.currentTime >= REACTION_CAPTURE_TIME_SECONDS) {
+    const captureAt =
+      reactionCaptureAtRef.current ?? getReactionCaptureTimeSeconds(videoElement.duration);
+
+    if (videoElement.currentTime >= captureAt) {
       captureReactionImage();
     }
   };
@@ -545,7 +601,9 @@ export function AudiencePage() {
         ref={videoRef}
         aria-hidden={playbackState !== 'playing'}
         className={`prologue-video prologue-video--${playbackState}`}
+        onDurationChange={handlePrologueVideoMetadata}
         onEnded={() => void handleVideoEnded()}
+        onLoadedMetadata={handlePrologueVideoMetadata}
         onTimeUpdate={handleVideoTimeUpdate}
         playsInline
         preload="auto"
