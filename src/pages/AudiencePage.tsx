@@ -41,6 +41,9 @@ const VIDEO_OVERLAY_CUES: VideoOverlayCue[] = [
 ];
 
 function getOverlayTextForTime(currentTime: number) {
+  if (currentTime >= 45 && currentTime <= 47) {
+    return "리액션 사진을 확인하세요";
+  }
   return VIDEO_OVERLAY_CUES.find((cue) => currentTime >= cue.start && currentTime < cue.end)
     ?.text;
 }
